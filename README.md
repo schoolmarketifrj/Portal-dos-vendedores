@@ -32,9 +32,15 @@
             </div>
 
             <form id="auth-form" class="space-y-4">
-                <div id="store-name-container" class="hidden">
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Nome da Minha Loja</label>
-                    <input type="text" id="auth-store-name" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Ex: Cantinho do Doce">
+                <div id="register-fields" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nome da Minha Loja</label>
+                        <input type="text" id="auth-store-name" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Ex: Cantinho do Doce">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">WhatsApp (com DDD)</label>
+                        <input type="text" id="auth-whatsapp" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Ex: 11999999999">
+                    </div>
                 </div>
                 
                 <div>
@@ -70,8 +76,6 @@
                     <span>Meus Produtos</span>
                 </a>
             </nav>
-            
-            <!-- Bottom Sidebar Actions -->
             <div class="p-4 border-t space-y-2">
                 <button onclick="logout()" class="flex items-center space-x-3 p-3 w-full text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
                     <i class="fas fa-sign-out-alt"></i>
@@ -97,11 +101,7 @@
             </header>
 
             <div class="p-6 max-w-6xl mx-auto">
-                <div id="products-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Dinâmico -->
-                </div>
-
-                <!-- Empty State -->
+                <div id="products-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
                 <div id="empty-state" class="hidden py-20 text-center">
                     <div class="bg-slate-200 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
                         <i class="fas fa-box-open text-slate-400 text-3xl"></i>
@@ -113,21 +113,18 @@
         </main>
     </div>
 
-    <!-- Modal Excluir Loja (Confirmação Extra) -->
+    <!-- Modais omitidos para brevidade mas mantidos na lógica (Delete Account e Product Modal) -->
+    <!-- ... (Delete Account Modal) ... -->
     <div id="delete-account-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 text-center">
             <div class="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <i class="fas fa-exclamation-triangle text-red-600 text-3xl"></i>
             </div>
             <h3 class="text-2xl font-bold text-slate-900 mb-2">Excluir sua Loja?</h3>
-            <p class="text-slate-500 mb-8 leading-relaxed">Esta ação é <b>permanente</b>. Todos os seus produtos cadastrados serão removidos do marketplace e não poderá recuperá-los.</p>
+            <p class="text-slate-500 mb-8 leading-relaxed">Esta ação é <b>permanente</b>. Todos os seus produtos cadastrados serão removidos do marketplace.</p>
             <div class="flex flex-col space-y-3">
-                <button id="btn-final-delete" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all">
-                    Sim, Excluir Tudo
-                </button>
-                <button onclick="closeDeleteModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition-all">
-                    Cancelar
-                </button>
+                <button id="btn-final-delete" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all">Sim, Excluir Tudo</button>
+                <button onclick="closeDeleteModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition-all">Cancelar</button>
             </div>
         </div>
     </div>
@@ -198,29 +195,23 @@
 
         let sellerEmail = null;
         let sellerStoreName = "Minha Loja";
+        let sellerWhatsApp = "";
         let isRegister = false;
 
-        // AUTH LOGIC
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 const saved = localStorage.getItem(`sm_session_${appId}`);
                 if (saved) {
-                    const email = saved;
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'sellers', email);
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'sellers', saved);
                     const snap = await getDoc(docRef);
                     if(snap.exists()) {
-                        sellerEmail = email;
-                        sellerStoreName = snap.data().storeName || email.split('@')[0];
+                        sellerEmail = saved;
+                        sellerStoreName = snap.data().storeName;
+                        sellerWhatsApp = snap.data().whatsapp || "";
                         showDashboard();
-                    } else {
-                        showAuth();
-                    }
-                } else {
-                    showAuth();
-                }
-            } else {
-                await signInAnonymously(auth);
-            }
+                    } else { showAuth(); }
+                } else { showAuth(); }
+            } else { await signInAnonymously(auth); }
             document.getElementById('loading-overlay').classList.add('hidden');
         });
 
@@ -228,33 +219,34 @@
             e.preventDefault();
             const email = document.getElementById('auth-email').value.toLowerCase().trim();
             const pass = document.getElementById('auth-password').value;
-            const storeNameInput = document.getElementById('auth-store-name').value.trim();
-            
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'sellers', email);
 
             try {
                 const snap = await getDoc(docRef);
                 if (isRegister) {
+                    const storeNameInput = document.getElementById('auth-store-name').value.trim();
+                    const whatsappInput = document.getElementById('auth-whatsapp').value.trim().replace(/\D/g,'');
                     if (snap.exists()) return alert("E-mail já registado!");
-                    if (!storeNameInput) return alert("Escolha um nome para a sua loja!");
+                    if (!storeNameInput || !whatsappInput) return alert("Preencha todos os campos!");
                     
-                    const newSeller = { 
+                    await setDoc(docRef, { 
                         password: pass, 
-                        storeName: storeNameInput,
+                        storeName: storeNameInput, 
+                        whatsapp: whatsappInput,
                         createdAt: Date.now() 
-                    };
-                    await setDoc(docRef, newSeller);
-                    enter(email, storeNameInput);
+                    });
+                    enter(email, storeNameInput, whatsappInput);
                 } else {
                     if (!snap.exists() || snap.data().password !== pass) return alert("Dados inválidos!");
-                    enter(email, snap.data().storeName);
+                    enter(email, snap.data().storeName, snap.data().whatsapp);
                 }
             } catch (err) { alert("Erro de conexão."); }
         };
 
-        function enter(email, storeName) {
+        function enter(email, storeName, whatsapp) {
             sellerEmail = email;
             sellerStoreName = storeName;
+            sellerWhatsApp = whatsapp;
             localStorage.setItem(`sm_session_${appId}`, email);
             showDashboard();
         }
@@ -264,51 +256,6 @@
             location.reload();
         };
 
-        // EXCLUIR CONTA LOGIC
-        window.confirmDeleteAccount = () => {
-            document.getElementById('delete-account-modal').classList.remove('hidden');
-        };
-
-        window.closeDeleteModal = () => {
-            document.getElementById('delete-account-modal').classList.add('hidden');
-        };
-
-        document.getElementById('btn-final-delete').onclick = async () => {
-            if (!sellerEmail) return;
-            
-            const btn = document.getElementById('btn-final-delete');
-            btn.innerText = "A apagar tudo...";
-            btn.disabled = true;
-
-            try {
-                // 1. Apagar todos os produtos vinculados a esta loja
-                const productsCol = collection(db, 'artifacts', appId, 'public', 'data', 'products');
-                const productsSnap = await getDocs(productsCol);
-                
-                const deletePromises = [];
-                productsSnap.forEach(productDoc => {
-                    if (productDoc.data().ownerEmail === sellerEmail) {
-                        deletePromises.push(deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', productDoc.id)));
-                    }
-                });
-                
-                await Promise.all(deletePromises);
-
-                // 2. Apagar o perfil do vendedor
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sellers', sellerEmail));
-
-                // 3. Finalizar
-                alert("A sua loja e todos os seus produtos foram excluídos com sucesso.");
-                logout();
-            } catch (err) {
-                console.error(err);
-                alert("Erro ao excluir conta. Tente novamente.");
-                btn.innerText = "Sim, Excluir Tudo";
-                btn.disabled = false;
-            }
-        };
-
-        // UI TOGGLES
         function showDashboard() {
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('dashboard').classList.remove('hidden');
@@ -323,29 +270,17 @@
 
         document.getElementById('toggle-auth').onclick = () => {
             isRegister = !isRegister;
-            const container = document.getElementById('store-name-container');
-            const storeNameInput = document.getElementById('auth-store-name');
-            
-            if(isRegister) {
-                container.classList.remove('hidden');
-                storeNameInput.setAttribute('required', 'true');
-            } else {
-                container.classList.add('hidden');
-                storeNameInput.removeAttribute('required');
-            }
-
+            document.getElementById('register-fields').classList.toggle('hidden', !isRegister);
             document.getElementById('auth-title').innerText = isRegister ? "Criar Conta de Vendedor" : "Portal do Vendedor";
             document.getElementById('auth-submit-btn').innerText = isRegister ? "Criar Minha Loja" : "Entrar no Painel";
             document.getElementById('toggle-auth').innerText = isRegister ? "Já tenho conta? Entrar" : "Ainda não tem conta? Registar Loja";
         };
 
-        // PRODUCTS LOGIC
         function initProductsListener() {
             const q = collection(db, 'artifacts', appId, 'public', 'data', 'products');
             onSnapshot(q, (snap) => {
-                const all = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                const mine = all.filter(p => p.ownerEmail === sellerEmail);
-                render(mine);
+                const list = snap.docs.map(d => ({id: d.id, ...d.data()})).filter(p => p.ownerEmail === sellerEmail);
+                render(list);
             });
         }
 
@@ -353,10 +288,8 @@
             const container = document.getElementById('products-list');
             const empty = document.getElementById('empty-state');
             container.innerHTML = '';
-            
             if (list.length === 0) return empty.classList.remove('hidden');
             empty.classList.add('hidden');
-
             list.forEach(p => {
                 container.innerHTML += `
                     <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
@@ -366,7 +299,6 @@
                                 <h4 class="font-bold text-slate-800">${p.name}</h4>
                                 <span class="text-blue-600 font-bold">R$ ${p.price.toFixed(2)}</span>
                             </div>
-                            <p class="text-xs text-slate-400 mb-3">${p.category}</p>
                             <div class="flex space-x-2 mt-4">
                                 <button onclick="editItem('${p.id}')" class="flex-1 py-2 bg-slate-50 text-slate-600 rounded-lg text-sm font-bold border hover:bg-blue-50 hover:text-blue-600 transition-colors">EDITAR</button>
                                 <button onclick="deleteItem('${p.id}')" class="px-3 py-2 text-slate-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>
@@ -388,19 +320,16 @@
                 description: document.getElementById('p-desc').value,
                 ownerEmail: sellerEmail,
                 storeName: sellerStoreName,
+                whatsapp: sellerWhatsApp, // Salva o WhatsApp atual da loja no produto
                 updatedAt: Date.now()
             };
-
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'products');
             if (id) await setDoc(doc(col, id), data, { merge: true });
             else await addDoc(col, data);
             closeModal();
         };
 
-        window.deleteItem = async (id) => {
-            if (confirm("Remover produto?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id));
-        };
-
+        window.deleteItem = async (id) => { if (confirm("Remover produto?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); };
         window.editItem = async (id) => {
             const d = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id));
             if (!d.exists()) return;
@@ -414,15 +343,22 @@
             document.getElementById('p-desc').value = p.description;
             document.getElementById('modal').classList.remove('hidden');
         };
-
         window.openModal = () => {
             document.getElementById('modal-title').innerText = "Novo Produto";
             document.getElementById('edit-id').value = "";
             document.getElementById('product-form').reset();
             document.getElementById('modal').classList.remove('hidden');
         };
-
         window.closeModal = () => document.getElementById('modal').classList.add('hidden');
+        window.closeDeleteModal = () => document.getElementById('delete-account-modal').classList.add('hidden');
+        window.confirmDeleteAccount = () => document.getElementById('delete-account-modal').classList.remove('hidden');
+        document.getElementById('btn-final-delete').onclick = async () => {
+            const productsCol = collection(db, 'artifacts', appId, 'public', 'data', 'products');
+            const productsSnap = await getDocs(productsCol);
+            productsSnap.forEach(async (d) => { if(d.data().ownerEmail === sellerEmail) await deleteDoc(d.ref); });
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sellers', sellerEmail));
+            logout();
+        };
     </script>
 </body>
 </html>
